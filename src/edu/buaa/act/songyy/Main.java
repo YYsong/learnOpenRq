@@ -1,11 +1,17 @@
 package edu.buaa.act.songyy;
 
+import net.fec.openrq.ArrayDataDecoder;
 import net.fec.openrq.ArrayDataEncoder;
 import net.fec.openrq.EncodingPacket;
 import net.fec.openrq.OpenRQ;
+import net.fec.openrq.decoder.SourceBlockDecoder;
 import net.fec.openrq.encoder.DataEncoder;
 import net.fec.openrq.encoder.SourceBlockEncoder;
 import net.fec.openrq.parameters.FECParameters;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
 import static net.fec.openrq.parameters.ParameterChecker.maxAllowedDataLength;
 import static net.fec.openrq.parameters.ParameterChecker.minAllowedNumSourceBlocks;
@@ -80,11 +86,35 @@ public class Main {
             datalength=data.length;
             System.out.println("Data length is "+datalength);
 
-            FECParameters fecParameters = getParameters((long)datalength*100000);
+            FECParameters fecParameters = getParameters((long)datalength);
             System.out.println(fecParameters.numberOfSourceBlocks()+" "+fecParameters.symbolSize()+" "+fecParameters.totalSymbols());
 
-//            ArrayDataEncoder arrayDataEncoder = OpenRQ.newEncoder(data,)
+            ArrayDataEncoder arrayDataEncoder = OpenRQ.newEncoder(data,fecParameters);
 
+            LinkedList<EncodingPacket> channel = new LinkedList<EncodingPacket>();
+
+            for(SourceBlockEncoder sourceBlockEncoder: arrayDataEncoder.sourceBlockIterable()){
+                for(EncodingPacket encodingPacket: sourceBlockEncoder.sourcePacketsIterable()){
+                    channel.add(encodingPacket);
+                }
+                int i =0;
+                for(EncodingPacket encodingPacket: sourceBlockEncoder.repairPacketsIterable(3)){
+                    channel.add(encodingPacket);
+                }
+            }
+
+            ArrayDataDecoder arrayDataDecoder = OpenRQ.newDecoderWithOneOverhead(fecParameters);
+            for(SourceBlockDecoder sourceBlockDecoder: arrayDataDecoder.sourceBlockIterable()){
+                System.out.println(sourceBlockDecoder.numberOfSourceSymbols()+" "+sourceBlockDecoder.isSourceBlockDecoded());
+                while(!sourceBlockDecoder.isSourceBlockDecoded()){
+                    sourceBlockDecoder.putEncodingPacket(channel.pop());
+                }
+            }
+            if(arrayDataDecoder.isDataDecoded()){
+                String result=new String(arrayDataDecoder.dataArray(),"UTF-8");
+                System.out.println(result.getBytes("UTF-8").length);
+                System.out.println(input.equals(result));
+            }
 
         }catch (java.io.UnsupportedEncodingException e){
             e.printStackTrace();
